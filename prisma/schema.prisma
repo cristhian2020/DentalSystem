@@ -1,0 +1,156 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Usuario {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email            String    @unique @db.VarChar(255)
+  password_hash    String?   @db.VarChar(255)
+  nombre           String    @db.VarChar(100)
+  apellido         String?   @db.VarChar(100)
+  telefono         String?   @db.VarChar(20)
+  especialidad     String?   @db.VarChar(100)
+  rol              String?   @default("dentista") @db.VarChar(20)
+  numero_colegiado String?   @unique @db.VarChar(50)
+  activo           Boolean?  @default(true)
+  fecha_registro   DateTime? @default(now()) @db.Timestamptz(6)
+  ultimo_login     DateTime? @db.Timestamptz(6)
+  creado_en        DateTime? @default(now()) @db.Timestamptz(6)
+  actualizado_en   DateTime? @default(now()) @db.Timestamptz(6)
+
+  historias_creadas        HistoriaClinica[]      @relation("HistoriasCreadas")
+  historias_doctor         HistoriaClinica[]      @relation("HistoriasDoctor")
+  odontogramas_modificados Odontograma[]          @relation("OdontogramasModificados")
+  tratamientos_realizados  TratamientoRealizado[] @relation("TratamientosRealizados")
+  pagos_registrados        Pago[]                 @relation("PagosRegistrados")
+
+  @@map("usuarios")
+}
+
+model Cita {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fecha          DateTime @db.Date
+  hora           String
+  nombre_cliente String
+  creado_en      DateTime @default(now()) @db.Timestamptz(6)
+  estado         String?  @db.VarChar
+
+  @@unique([fecha, hora], map: "citas_fecha_hora_uidx")
+  @@index([fecha], map: "citas_fecha_idx")
+  @@map("citas")
+}
+
+model HistoriaClinica {
+  id                             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  numero_historia                String?   @unique @db.VarChar(50)
+  nombre                         String    @db.VarChar(100)
+  apellido                       String    @db.VarChar(100)
+  edad                           Int?
+  sexo                           String?   @db.VarChar(10)
+  fecha_nacimiento               DateTime? @db.Date
+  lugar_nacimiento               String?   @db.VarChar(200)
+  religion                       String?   @db.VarChar(100)
+  celular                        String?   @db.VarChar(20)
+  direccion                      String?
+  tratamiento_medico             Boolean?  @default(false)
+  medicamentos_actuales          Boolean?  @default(false)
+  enfermedad_corazon             Boolean?  @default(false)
+  alergias                       Boolean?  @default(false)
+  hemorragias_extraccion         Boolean?  @default(false)
+  tratamiento_medico_detalle     String?
+  medicamentos_actuales_detalle  String?
+  enfermedad_corazon_detalle     String?
+  alergias_detalle               String?
+  hemorragias_extraccion_detalle String?
+  comentarios_medico             String?
+  usa_cepillo                    Boolean?  @default(false)
+  usa_dentifrico                 Boolean?  @default(false)
+  veces_cepillado_dia            Int?      @default(0)
+  tecnica_cepillado              String?   @db.VarChar(100)
+  usa_hilo_dental                Boolean?  @default(false)
+  observaciones_generales        String?
+  estado                         String?   @default("activo") @db.VarChar(20)
+  doctor_id                      String?   @db.Uuid
+  creado_por                     String?   @db.Uuid
+  creado_en                      DateTime? @default(now()) @db.Timestamptz(6)
+  actualizado_en                 DateTime? @default(now()) @db.Timestamptz(6)
+
+  creador      Usuario?               @relation("HistoriasCreadas", fields: [creado_por], references: [id])
+  doctor       Usuario?               @relation("HistoriasDoctor", fields: [doctor_id], references: [id])
+  odontogramas Odontograma[]
+  tratamientos TratamientoRealizado[]
+
+  @@index([doctor_id], map: "idx_historias_doctor_id")
+  @@index([estado], map: "idx_historias_estado")
+  @@index([nombre, apellido], map: "idx_historias_nombre_apellido")
+  @@index([numero_historia], map: "idx_historias_numero")
+  @@map("historias_clinicas")
+}
+
+model Odontograma {
+  id                  String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  historia_id         String          @db.Uuid
+  pieza_numero        String          @db.VarChar(3)
+  estado              String?         @db.VarChar(50)
+  color_codigo        String?         @default("#FFFFFF") @db.VarChar(7)
+  observaciones       String?
+  fecha_ultimo_cambio DateTime?       @default(now()) @db.Date
+  modificado_por      String?         @db.Uuid
+  creado_en           DateTime?       @default(now()) @db.Timestamptz(6)
+  actualizado_en      DateTime?       @default(now()) @db.Timestamptz(6)
+  descripcion         String?         @db.VarChar
+
+  historia    HistoriaClinica @relation(fields: [historia_id], references: [id], onDelete: Cascade)
+  modificador Usuario?        @relation("OdontogramasModificados", fields: [modificado_por], references: [id])
+
+  @@unique([historia_id, pieza_numero], map: "odontogramas_historia_id_diente_numero_key")
+  @@index([pieza_numero], map: "idx_odontogramas_diente")
+  @@index([historia_id], map: "idx_odontogramas_historia")
+  @@map("odontogramas")
+}
+
+model TratamientoRealizado {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  historia_id       String          @db.Uuid
+  fecha_tratamiento DateTime        @default(now()) @db.Date
+  descripcion       String
+  precio            Decimal         @db.Decimal(10, 2)
+  estado_pago       String?         @default("pendiente") @db.VarChar(20)
+  realizado_por     String?         @db.Uuid
+  creado_en         DateTime?       @default(now()) @db.Timestamptz(6)
+  actualizado_en    DateTime?       @default(now()) @db.Timestamptz(6)
+
+  historia HistoriaClinica @relation(fields: [historia_id], references: [id], onDelete: Cascade)
+  doctor   Usuario?        @relation("TratamientosRealizados", fields: [realizado_por], references: [id])
+  pagos    Pago[]
+
+  @@index([estado_pago], map: "idx_tratamientos_estado_pago")
+  @@index([fecha_tratamiento], map: "idx_tratamientos_fecha")
+  @@index([historia_id], map: "idx_tratamientos_historia")
+  @@map("tratamientos_realizados")
+}
+
+model Pago {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tratamiento_id String               @db.Uuid
+  fecha_pago     DateTime             @default(now()) @db.Date
+  monto          Decimal              @db.Decimal(10, 2)
+  metodo_pago    String?              @default("efectivo") @db.VarChar(50)
+  referencia     String?              @db.VarChar(100)
+  observaciones  String?
+  registrado_por String?              @db.Uuid
+  creado_en      DateTime?            @default(now()) @db.Timestamptz(6)
+
+  tratamiento TratamientoRealizado @relation(fields: [tratamiento_id], references: [id], onDelete: Cascade)
+  registrador Usuario?             @relation("PagosRegistrados", fields: [registrado_por], references: [id])
+
+  @@index([fecha_pago], map: "idx_pagos_fecha")
+  @@index([tratamiento_id], map: "idx_pagos_tratamiento")
+  @@map("pagos")
+}
+
